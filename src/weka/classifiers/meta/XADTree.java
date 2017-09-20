@@ -21,6 +21,7 @@ public class XADTree extends ADTree {
     Attribute m_GradientAttribute;
     Attribute m_HessianAttribute;
 
+    private String m_ObjFunc = "logloss";
     private double m_RegAlpha = 0;
     private double m_RegLambda = 1;
     private double m_MaxDeltaStep = 0;
@@ -67,6 +68,9 @@ public class XADTree extends ADTree {
 
         options.add("-weightCorrFreq");
         options.add("" + getWeightCorrFreq());
+
+        options.add("-objFunc");
+        options.add("" + getObjFunc());
 
         Collections.addAll(options, super.getOptions());
 
@@ -124,6 +128,11 @@ public class XADTree extends ADTree {
         String wcString = Utils.getOption("weightCorrFreq", options);
         if (wcString.length() != 0) {
             setWeightCorrFreq(Integer.parseInt(wcString));
+        }
+
+        String objString = Utils.getOption("objFunc", options);
+        if (objString.length() != 0) {
+            setObjFunc(objString);
         }
 
         setSaveInstanceData(Utils.getFlag('D', options));
@@ -223,6 +232,15 @@ public class XADTree extends ADTree {
         return m_weightCorrectFreq;
     }
 
+    @OptionMetadata(displayName = "Objective function", description = "The objective function to use", commandLineParamName = "objFunc", commandLineParamSynopsis = "-objFunc", displayOrder = 11)
+    public void setObjFunc(String func) {
+        m_ObjFunc = func;
+    }
+
+    public String getObjFunc() {
+        return m_ObjFunc;
+    }
+
     @Override
     public void buildClassifier(Instances data) throws Exception {
 
@@ -232,6 +250,12 @@ public class XADTree extends ADTree {
         // remove instances with missing class
         data = new Instances(data);
         data.deleteWithMissingClass();
+
+        if(data.classAttribute().isNumeric()) {
+            m_ObjFunc = "linloss";
+        } else if(data.classAttribute().isNominal() && data.numClasses() == 2) {
+            m_ObjFunc = "logloss";
+        }
 
         // Add information columns
         data.insertAttributeAt(new Attribute("prediction"), data.numAttributes());
@@ -267,6 +291,9 @@ public class XADTree extends ADTree {
 
         for (int T = 0; T < m_BackfitIterations; T++) {
             backfit();
+        }
+        if(m_BackfitIterations != 0) {
+            //weightCorrect();
         }
 
         // Not too sure if this works properly
@@ -441,15 +468,15 @@ public class XADTree extends ADTree {
             inst.setValue(m_PredictionAttribute, inst.value(m_PredictionAttribute) + predictionValue);
         }
 
-        ObjectiveFunctions f = new ObjectiveFunctions(posInstances, m_PredictionAttribute, m_GradientAttribute, m_HessianAttribute, "logloss");
-        ObjectiveFunctions g = new ObjectiveFunctions(negInstances, m_PredictionAttribute, m_GradientAttribute, m_HessianAttribute, "logloss");
+        ObjectiveFunctions f = new ObjectiveFunctions(posInstances, m_PredictionAttribute, m_GradientAttribute, m_HessianAttribute, m_ObjFunc);
+        ObjectiveFunctions g = new ObjectiveFunctions(negInstances, m_PredictionAttribute, m_GradientAttribute, m_HessianAttribute, m_ObjFunc);
     }
 
     protected void updateWeights(Instances instances, double predictionValue) {
         for (Enumeration e = instances.enumerateInstances(); e.hasMoreElements();) {
             Instance inst = (Instance) e.nextElement();
             inst.setValue(m_PredictionAttribute, inst.value(m_PredictionAttribute) + predictionValue);
-            ObjectiveFunctions f = new ObjectiveFunctions(instances, m_PredictionAttribute, m_GradientAttribute, m_HessianAttribute, "logloss");
+            ObjectiveFunctions f = new ObjectiveFunctions(instances, m_PredictionAttribute, m_GradientAttribute, m_HessianAttribute, m_ObjFunc);
         }
     }
 
