@@ -290,7 +290,7 @@ public class XADTree extends ADTree {
         }
 
         for (int T = 0; T < m_BackfitIterations; T++) {
-            backfit();
+            weightBackfit();
         }
         if(m_BackfitIterations != 0) {
             //weightCorrect();
@@ -373,6 +373,41 @@ public class XADTree extends ADTree {
             for(int j = 0; j < split.getNumOfBranches(); j++) {
                 Instances branchInstances = split.instancesDownBranch(j, instances);
                 backfit(split.getChildForBranch(j), (level + 1), branchInstances);
+            }
+        }
+    }
+
+    public void weightBackfit() throws Exception {
+        weightBackfit(m_root, 1, m_trainInstances);
+    }
+
+    public void weightBackfit(PredictionNode currentNode, int level, Instances instances) throws Exception {
+
+        for (Enumeration e = currentNode.children(); e.hasMoreElements();) {
+            Splitter split = (Splitter) e.nextElement();
+
+            for (int j = 0; j < split.getNumOfBranches(); j++) {
+                Instances branchedInstances = split.instancesDownBranch(j, instances);
+                updateWeights(branchedInstances, -split.getChildForBranch(j).getValue());
+            }
+
+            for (int j = 0; j < split.getNumOfBranches(); j++) {
+
+                Instances branchInstances = split.instancesDownBranch(j, instances);
+                double predictionValue = calcPredictionValue(branchInstances);
+                if(Math.abs(predictionValue) <= m_MinPredValue) {
+                    predictionValue = 0.0;
+                }
+                split.getChildForBranch(j).setValue(predictionValue);
+                updateWeights(branchInstances, predictionValue);
+            }
+        }
+
+        for(Enumeration e = currentNode.children(); e.hasMoreElements();) {
+            Splitter split = (Splitter) e.nextElement();
+            for(int j = 0; j < split.getNumOfBranches(); j++) {
+                Instances branchInstances = split.instancesDownBranch(j, instances);
+                weightBackfit(split.getChildForBranch(j), (level + 1), branchInstances);
             }
         }
     }
